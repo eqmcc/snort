@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  ****************************************************************************/
 
@@ -68,6 +68,7 @@
 #include "sfPolicy.h"
 #include "sfPolicyUserData.h"
 #include "Unified2_common.h"
+#include "file_api.h"
 #ifdef DEBUG_MSGS
 #include "sf_types.h"
 #endif
@@ -256,7 +257,8 @@ static inline void SetSmtpBuffers(SMTP *ssn)
                 ssn->decode_bkt = bkt;
                 SetEmailDecodeState(ssn->decode_state, bkt->data, smtp_eval_config->max_depth,
                         smtp_eval_config->b64_depth, smtp_eval_config->qp_depth,
-                        smtp_eval_config->uu_depth, smtp_eval_config->bitenc_depth);
+                        smtp_eval_config->uu_depth, smtp_eval_config->bitenc_depth,
+                        smtp_eval_config->file_depth);
             }
             else
             {
@@ -292,6 +294,7 @@ static void SetLogBuffers(SMTP *ssn)
                 ssn->log_state->snds_logged = 0;
                 ssn->log_state->filenames = (uint8_t *)bkt->data + (2*MAX_EMAIL);
                 ssn->log_state->file_logged = 0;
+                ssn->log_state->file_current = 0;
                 ssn->log_state->emailHdrs = (unsigned char *)bkt->data + (2*MAX_EMAIL) + MAX_FILE;
                 ssn->log_state->hdrs_logged = 0;
             }
@@ -1368,7 +1371,18 @@ static const uint8_t * SMTP_HandleCommand(SFSnortPacket *p, const uint8_t *ptr, 
     return eol;
 }
 
-
+static inline void updateFileName(SMTP_LogState *log_state, void *ssn)
+{
+    if ((log_state) && (log_state->file_logged > log_state->file_current))
+    {
+        _dpd.fileAPI->set_file_name(ssn, log_state->filenames + log_state->file_current,
+                log_state->file_logged -log_state->file_current);
+    }
+    else
+    {
+        _dpd.fileAPI->set_file_name(ssn, NULL, 0);
+    }
+}
 static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, const uint8_t *end)
 {
     const uint8_t *data_end_marker = NULL;
@@ -1376,6 +1390,7 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
     int data_end_found;
     int ret;
     uint16_t alt_decode_len = 0;
+    FilePosition position = SNORT_FILE_START;
 
     /* if we've just entered the data state, check for a dot + end of line
      * if found, no data */
@@ -1484,15 +1499,26 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
     /* now we shouldn't have to worry about copying any data to the alt buffer
      * only mime headers if we find them and only if we're ignoring data */
 
+    initFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
+
     while ((ptr != NULL) && (ptr < data_end_marker))
     {
         /* multiple MIME attachments in one single packet.
          * Pipeline the MIME decoded data.*/
         if ( smtp_ssn->state_flags & SMTP_FLAG_MULTIPLE_EMAIL_ATTACH)
         {
-            alt_decode_len = 0;
-            _dpd.setFileDataPtr(smtp_ssn->decode_state->decodePtr, (uint16_t)smtp_ssn->decode_state->decoded_bytes);
+            int detection_size = getDetectionSize(smtp_eval_config->b64_depth, smtp_eval_config->qp_depth,
+                    smtp_eval_config->uu_depth, smtp_eval_config->bitenc_depth,smtp_ssn->decode_state );
+            _dpd.setFileDataPtr(smtp_ssn->decode_state->decodePtr, (uint16_t)detection_size);
+            /*Upload*/
+            if (_dpd.fileAPI->file_process(p,(uint8_t *)smtp_ssn->decode_state->decodePtr,
+                    (uint16_t)smtp_ssn->decode_state->decoded_bytes, position, 1)
+                    && ((position == SNORT_FILE_START)|| (position == SNORT_FILE_FULL)))
+            {
+                updateFileName(smtp_ssn->log_state, p->stream_session_ptr);
+            }
             SMTP_LogFuncs(smtp_eval_config, p);
+            alt_decode_len = 0;
             if (_dpd.Is_DetectFlag(SF_FLAG_ALT_DECODE))
             {
                 alt_decode_len = _dpd.altBuffer->len;
@@ -1516,10 +1542,12 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
             case STATE_MIME_HEADER:
                 DEBUG_WRAP(DebugMessage(DEBUG_SMTP, "MIME HEADER STATE ~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = SMTP_HandleHeader(p, ptr, data_end_marker);
+                finalFilePosition(&position);
                 break;
             case STATE_DATA_BODY:
                 DEBUG_WRAP(DebugMessage(DEBUG_SMTP, "DATA BODY STATE ~~~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = SMTP_HandleDataBody(p, ptr, data_end_marker);
+                updateFilePosition(&position, _dpd.fileAPI->get_file_processed_size(p->stream_session_ptr));
                 break;
         }
     }
@@ -1528,7 +1556,26 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
 
     if(smtp_ssn->decode_state != NULL)
     {
-        _dpd.setFileDataPtr(smtp_ssn->decode_state->decodePtr, (uint16_t)smtp_ssn->decode_state->decoded_bytes);
+        if ((position == SNORT_FILE_START) || (position == SNORT_FILE_FULL))
+        {
+            int detection_size = getDetectionSize(smtp_eval_config->b64_depth, smtp_eval_config->qp_depth,
+                    smtp_eval_config->uu_depth, smtp_eval_config->bitenc_depth,smtp_ssn->decode_state );
+            _dpd.setFileDataPtr(smtp_ssn->decode_state->decodePtr, (uint16_t)detection_size);
+        }
+        else
+        {
+            _dpd.setFileDataPtr(smtp_ssn->decode_state->decodePtr, 0);
+        }
+        if (data_end_marker != end)
+        {
+           finalFilePosition(&position);
+        }
+        if (_dpd.fileAPI->file_process(p,(uint8_t *)smtp_ssn->decode_state->decodePtr,
+                (uint16_t)smtp_ssn->decode_state->decoded_bytes, position, 1)
+                && ((position == SNORT_FILE_START) || (position == SNORT_FILE_FULL)))
+        {
+            updateFileName(smtp_ssn->log_state, p->stream_session_ptr);
+        }
         SMTP_UpdateDecodeStats(smtp_ssn->decode_state);
         ResetDecodedBytes(smtp_ssn->decode_state);
     }

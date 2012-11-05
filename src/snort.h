@@ -15,7 +15,7 @@
 **
 ** You should have received a copy of the GNU General Public License
 ** along with this program; if not, write to the Free Software
-** Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* $Id$ */
@@ -126,13 +126,13 @@
 #define LOG_TCPDUMP         0x00000002
 #define LOG_UNIFIED2         0x0000004
 
-#ifndef SIGNAL_SNORT_RELOAD         
+#ifndef SIGNAL_SNORT_RELOAD
 #define SIGNAL_SNORT_RELOAD         SIGHUP
 #endif
-#ifndef SIGNAL_SNORT_DUMP_STATS     
+#ifndef SIGNAL_SNORT_DUMP_STATS
 #define SIGNAL_SNORT_DUMP_STATS     SIGUSR1
 #endif
-#ifndef SIGNAL_SNORT_ROTATE_STATS   
+#ifndef SIGNAL_SNORT_ROTATE_STATS
 #define SIGNAL_SNORT_ROTATE_STATS   SIGUSR2
 #endif
 
@@ -556,15 +556,14 @@ typedef struct _SnortPolicy
 
     VarEntry *var_table;
     uint32_t var_id;
-#ifdef SUP_IP6
     vartable_t *ip_vartable;
-#endif  /* SUP_IP6 */
 
     /* The portobjects in these are attached to rtns and used during runtime */
     PortVarTable *portVarTable;     /* named entries, uses a hash table */
     PortTable *nonamePortVarTable;  /* un-named entries */
 
     PreprocEvalFuncNode *preproc_eval_funcs;
+    PreprocEvalFuncNode *unused_preproc_eval_funcs;
     PreprocMetaEvalFuncNode *preproc_meta_eval_funcs;
 
     int preproc_proto_mask;
@@ -656,15 +655,8 @@ typedef struct _SnortConfig
 #endif
 
     /* -h and -B */
-#ifdef SUP_IP6
     sfip_t homenet;
     sfip_t obfuscation_net;
-#else
-    uint32_t homenet;
-    uint32_t netmask;
-    uint32_t obfuscation_net;
-    uint32_t obfuscation_mask;
-#endif
 
     /* config disable_decode_alerts
      * config enable_decode_oversized_alerts
@@ -862,12 +854,16 @@ typedef struct _SnortConfig
     char *gtp_ports;
     uint8_t enable_esp;
     uint8_t vlan_agnostic; /* config vlan_agnostic */
+    uint8_t addressspace_agnostic; /* config addressspace_agnostic */
     uint8_t log_ipv6_extra; /* config log_ipv6_extra_data */
 
     uint32_t so_rule_memcap;
     uint32_t paf_max;          /* config paf_max */
     char *cs_dir;
     char *output_dir;
+    void *file_config;
+    int disable_all_policies;
+    uint32_t reenabled_preprocessor_bits; /* flags for preprocessors to check, if all policies are disabled */
 } SnortConfig;
 
 /* struct to collect packet statistics */
@@ -1621,6 +1617,11 @@ static inline int ScESPDecoding(void)
 static inline int ScVlanAgnostic(void)
 {
     return snort_conf->vlan_agnostic;
+}
+
+static inline int ScAddressSpaceAgnostic(void)
+{
+    return snort_conf->addressspace_agnostic;
 }
 
 static inline int ScLogIPv6Extra(void)
