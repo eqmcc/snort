@@ -52,6 +52,8 @@ int active_drop_ssn = 0;
 // TBD consider performance of replacing active_drop_pkt/ssn
 // with a active_verdict.  change over if it is a wash or better.
 
+int active_tunnel_bypass = 0;
+
 #ifdef ACTIVE_RESPONSE
 int active_have_rsp = 0;
 

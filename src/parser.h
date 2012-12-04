@@ -209,6 +209,7 @@
 #endif
 #define CONFIG_OPT__CONTROL_SOCKET_DIR              "cs_dir"
 #define CONFIG_OPT__FILE                            "file"
+#define CONFIG_OPT__TUNNEL_BYPASS                   "tunnel_verdicts"
 
 extern SnortConfig *snort_conf_for_parsing;
 
@@ -385,6 +386,7 @@ void ConfigDumpDynamicRulesPath(SnortConfig *, char *);
 #endif
 void ConfigControlSocketDirectory(SnortConfig *, char *);
 void ConfigFile(SnortConfig *, char *);
+void ConfigTunnelVerdicts(SnortConfig*, char*);
 
 int addRtnToOtn(
         OptTreeNode *otn,

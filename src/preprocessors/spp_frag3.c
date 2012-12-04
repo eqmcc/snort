@@ -1038,7 +1038,7 @@ int Frag3KeyCmpFunc(const void *s1, const void *s2, size_t n)
 #endif
 #ifdef HAVE_DAQ_ADDRESS_SPACE_ID
 #ifdef MPLS
-    a++; 
+    a++;
     b++;
 #else
     a+=2;
@@ -4816,17 +4816,17 @@ int fragGetApplicationProtocolId(Packet *p)
     switch (GET_IPH_PROTO(p))
     {
         case IPPROTO_TCP:
-            ft->ipprotocol = FindProtocolReference("tcp");
+            ft->ipprotocol = protocolReferenceTCP;
             src_port = p->sp;
             dst_port = p->dp;
             break;
         case IPPROTO_UDP:
-            ft->ipprotocol = FindProtocolReference("udp");
+            ft->ipprotocol = protocolReferenceUDP;
             src_port = p->sp;
             dst_port = p->dp;
             break;
         case IPPROTO_ICMP:
-            ft->ipprotocol = FindProtocolReference("icmp");
+            ft->ipprotocol = protocolReferenceICMP;
             break;
     }
 

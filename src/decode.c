@@ -3807,6 +3807,8 @@ decodeipv6_fail:
         if (p->greh != NULL)
             pc.gre_ipv6--;
 #endif
+        if ( ScTunnelBypassEnabled(TUNNEL_TEREDO) )
+            Active_ClearTunnelBypass();
         return;
     }
 
@@ -4209,6 +4211,9 @@ void DecodeTeredo(const uint8_t *pkt, uint32_t len, Packet *p)
     {
         p->proto_bits |= PROTO_BIT__TEREDO;
         pc.teredo++;
+
+        if ( ScTunnelBypassEnabled(TUNNEL_TEREDO) )
+            Active_SetTunnelBypass();
 
         if (ScDeepTeredoInspection() && (p->sp != TEREDO_PORT) && (p->dp != TEREDO_PORT))
             p->packet_flags |= PKT_UNSURE_ENCAP;
@@ -4697,6 +4702,9 @@ void DecodeGTP(const uint8_t *pkt, uint32_t len, Packet *p)
     }
 
     PushLayer(PROTO_GTP, p, pkt, header_len);
+
+    if ( ScTunnelBypassEnabled(TUNNEL_GTP) )
+        Active_SetTunnelBypass();
 
     len -=  header_len;
     if (len > 0)

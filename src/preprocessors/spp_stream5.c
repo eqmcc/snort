@@ -2352,13 +2352,13 @@ void Stream5SetIPProtocol(Stream5LWSession *lwssn)
     switch (lwssn->protocol)
     {
     case IPPROTO_TCP:
-        lwssn->ipprotocol = FindProtocolReference("tcp");
+        lwssn->ipprotocol = protocolReferenceTCP;
         break;
     case IPPROTO_UDP:
-        lwssn->ipprotocol = FindProtocolReference("udp");
+        lwssn->ipprotocol = protocolReferenceUDP;
         break;
     case IPPROTO_ICMP:
-        lwssn->ipprotocol = FindProtocolReference("icmp");
+        lwssn->ipprotocol = protocolReferenceICMP;
         break;
     }
 }
@@ -2543,6 +2543,9 @@ static int16_t Stream5SetApplicationProtocolId(void *ssnptr, int16_t id)
         return 0;
 
     ssn->application_protocol = id;
+
+    if (!ssn->ipprotocol)
+        Stream5SetIPProtocol(ssn);
 
     SFAT_UpdateApplicationProtocol(IP_ARG(ssn->server_ip), ntohs(ssn->server_port), ssn->ipprotocol, id);
 

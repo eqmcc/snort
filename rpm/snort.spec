@@ -36,7 +36,7 @@
 
 
 Name: %{realname}
-Version: 2.9.4.rc
+Version: 2.9.4
 Epoch: 1
 Release: %{release}
 Summary: An open source Network Intrusion Detection System (NIDS)

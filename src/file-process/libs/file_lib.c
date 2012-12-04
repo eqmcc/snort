@@ -125,9 +125,13 @@ void file_signature_sha256( FileContext* context, uint8_t* file_data, int data_s
         SHA256UPDATE((SHA256CONTEXT *)context->file_signature_context, file_data, data_size);
         break;
     case SNORT_FILE_MIDDLE:
+        if (!context->file_signature_context)
+            context->file_signature_context = SnortAlloc(sizeof(SHA256CONTEXT));
         SHA256UPDATE((SHA256CONTEXT *)context->file_signature_context, file_data, data_size);
         break;
     case SNORT_FILE_END:
+        if (!context->file_signature_context)
+            context->file_signature_context = SnortAlloc(sizeof(SHA256CONTEXT));
         SHA256UPDATE((SHA256CONTEXT *)context->file_signature_context, file_data, data_size);
         context->sha256 = SnortAlloc(SHA256_HASH_SIZE);
         SHA256FINAL(context->sha256, (SHA256CONTEXT *)context->file_signature_context);

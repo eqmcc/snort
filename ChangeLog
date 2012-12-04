@@ -1,3 +1,30 @@
+Snort 2.9.4
+	* src/build.h:
+ 	  Updated build number to 40.
+
+	* src/target-based/sftarget_reader.c:
+	  Hard limit on the number of services per host to at most 10.
+
+	* doc/README.counts, doc/snort_manual.tex, doc/snort_manual.pdf,
+	  src/active.c, src/active.h, src/decode.c, src/parser.c,
+	  src/parser.h, src/snort.c, src/snort.h, src/util.c:
+	  added config tunnel_verdicts and tunnel bypass for whitelist and
+	  blacklist verdicts for gtp or teredo encapsulated traffic.
+
+	* src/dynamic-preprocessors/smtp/: snort_smtp.c, snort_smtp.h:
+	  Handle MS Exchange X-EXPS and XEXCH50 commands in the SMTP
+	  preprocessor.
+
+        * src/file-process/libs/file_lib.c:
+          Ensure that the file context is initialized for mid-file and
+          end-of-file processing.
+
+        * src/dynamic-plugins/attribute_table_api.h,
+          target-based/sftarget_protocol_reference.c, sftarget_protocol_reference.h,
+          preprocessors/spp_frag3.c, spp_stream5.c
+          Add an API call to add a service to a host in the attribute map.
+          the unused live attribute map.
+
 2012-10-16 Steven Sturges <ssturges@sourcefire.com>
 Snort 2.9.4 RC
 	* src/build.h:

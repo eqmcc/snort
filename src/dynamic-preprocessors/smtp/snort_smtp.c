@@ -152,7 +152,9 @@ const SMTPToken smtp_resps[] =
 {
 	{"220",  3,  RESP_220},  /* Service ready - initial response and STARTTLS response */
 	{"221",  3,  RESP_221},  /* Goodbye - response to QUIT */
+	{"235",  3,  RESP_235},  /* X-EXPS done */
 	{"250",  3,  RESP_250},  /* Requested mail action okay, completed */
+	{"334",  3,  RESP_334},  /* X-EXPS */
 	{"354",  3,  RESP_354},  /* Start mail input - data response */
 	{"421",  3,  RESP_421},  /* Service not availiable - closes connection */
 	{"450",  3,  RESP_450},  /* Mailbox unavailable */
@@ -1219,16 +1221,17 @@ static const uint8_t * SMTP_HandleCommand(SFSnortPacket *p, const uint8_t *ptr, 
 
             break;
 
-#if 0
+        case CMD_XEXCH50:
         case CMD_BDAT:
+            if ((smtp_ssn->state_flags & (SMTP_FLAG_GOT_RCPT_CMD | SMTP_FLAG_BDAT))
+                    || (smtp_ssn->state == STATE_UNKNOWN))
             {
                 const uint8_t *begin_chunk;
                 const uint8_t *end_chunk;
-                const uint8_t *last;
                 const uint8_t *tmp;
                 int num_digits;
                 int ten_power;
-                uint32_t bdat_chunk;
+                uint32_t dat_chunk = 0;
 
                 begin_chunk = ptr + smtp_search_info.index + smtp_search_info.length;
                 while ((begin_chunk < eolm) && isspace((int)*begin_chunk))
@@ -1250,68 +1253,47 @@ static const uint8_t * SMTP_HandleCommand(SFSnortPacket *p, const uint8_t *ptr, 
                 num_digits = end_chunk - begin_chunk;
 
                 /* more than 9 digits could potentially overflow a 32 bit integer
-                 * this allows for one less than a billion bytes which most servers
-                 * won't accept */
+                 * most servers won't accept this much in a chunk */
                 if (num_digits > 9)
                     break;
 
                 tmp = end_chunk;
                 for (ten_power = 1, tmp--; tmp >= begin_chunk; ten_power *= 10, tmp--)
+                    dat_chunk += (*tmp - '0') * ten_power;
+
+                if (smtp_search_info.id == CMD_BDAT)
                 {
-                    bdat_chunk += (*tmp - '0') * ten_power;
-                }
+                    /* got a valid chunk size - check to see if this is the last chunk */
+                    const uint8_t *last = end_chunk;
+                    bool bdat_last = false;
 
-                /* bad bdat chunk size */
-                if (bdat_chunk == 0)
-                    break;
+                    while ((last < eolm) && isspace((int)*last))
+                        last++;
 
-                /* got a valid chunk size - check to see if this is the last chunk */
-                last = end_chunk;
-                while ((last < eolm) && isspace((int)*last))
-                    last++;
-
-                /* TODO need an ESMTP argument search */
-                if (last < eolm)
-                {
-                    /* must have at least 4 chars for 'last' */
-                    if ((eolm - last) >= 4)
+                    if (((eolm - last) >= 4)
+                            && (strncasecmp("LAST", (const char *)last, 4) == 0))
                     {
-                        if (*last == 'l' || *last == 'L')
-                        {
-                            last++;
-                            if (*last == 'a' || *last == 'A')
-                            {
-                                last++;
-                                if (*last == 's' || *last == 'S')
-                                {
-                                    last++;
-                                    if (*last == 't' || *last == 'T')
-                                    {
-                                        last++;
-                                        while ((last < eolm) && isspace((int)*last))
-                                            last++;
-
-                                        if (last != eolm)
-                                        {
-                                            break;
-                                        }
-
-                                        smtp_ssn->bdat_last = 1;
-                                    }
-                                }
-                            }
-                        }
+                        bdat_last = true;
                     }
+
+                    if (bdat_last)
+                        smtp_ssn->state_flags &= ~(SMTP_FLAG_BDAT);
+                    else
+                        smtp_ssn->state_flags |= SMTP_FLAG_BDAT;
+
+                    smtp_ssn->state = STATE_BDATA;
+                    smtp_ssn->state_flags &= ~(SMTP_FLAG_GOT_MAIL_CMD | SMTP_FLAG_GOT_RCPT_CMD);
+                }
+                else
+                {
+                    smtp_ssn->state = STATE_XEXCH50;
                 }
 
-                smtp_ssn->state = STATE_BDAT;
-                smtp_ssn->bdat_chunk = bdat_chunk;
+                smtp_ssn->dat_chunk = dat_chunk;
             }
 
             break;
-#endif
 
-        case CMD_BDAT:
         case CMD_DATA:
             if ((smtp_ssn->state_flags & SMTP_FLAG_GOT_RCPT_CMD) ||
                 smtp_ssn->state == STATE_UNKNOWN)
@@ -1342,6 +1324,10 @@ static const uint8_t * SMTP_HandleCommand(SFSnortPacket *p, const uint8_t *ptr, 
             if (smtp_eval_config->alert_xlink2state)
                 ParseXLink2State(p, ptr + smtp_search_info.index);
 
+            break;
+
+        case CMD_X_EXPS:
+            smtp_ssn->state = STATE_X_EXPS;
             break;
 
         default:
@@ -1391,6 +1377,7 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
     int ret;
     uint16_t alt_decode_len = 0;
     FilePosition position = SNORT_FILE_START;
+    bool done_data = false;
 
     /* if we've just entered the data state, check for a dot + end of line
      * if found, no data */
@@ -1438,22 +1425,40 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
          * in the body which seems more reasonable. */
     }
 
-    /* get end of data body
-     * TODO check last bytes of previous packet to see if we had a partial
-     * end of data */
-    smtp_current_search = &smtp_data_end_search[0];
-    data_end_found = _dpd.searchAPI->search_instance_find
-        (smtp_data_search_mpse, (const char *)ptr, end - ptr,
-         0, SMTP_SearchStrFound);
-
-    if (data_end_found > 0)
+    if (smtp_ssn->state == STATE_DATA)
     {
-        data_end_marker = ptr + smtp_search_info.index;
-        data_end = data_end_marker + smtp_search_info.length;
+        /* get end of data body
+         * TODO check last bytes of previous packet to see if we had a partial
+         * end of data */
+        smtp_current_search = &smtp_data_end_search[0];
+        data_end_found = _dpd.searchAPI->search_instance_find
+            (smtp_data_search_mpse, (const char *)ptr, end - ptr,
+             0, SMTP_SearchStrFound);
+
+        if (data_end_found > 0)
+        {
+            data_end_marker = ptr + smtp_search_info.index;
+            data_end = data_end_marker + smtp_search_info.length;
+            done_data = true;
+        }
+        else
+        {
+            data_end_marker = data_end = end;
+        }
     }
     else
     {
-        data_end_marker = data_end = end;
+        if ((ptr + smtp_ssn->dat_chunk) <= end)
+        {
+            data_end_marker = data_end = ptr + smtp_ssn->dat_chunk;
+            smtp_ssn->dat_chunk = 0;
+            done_data = true;
+        }
+        else
+        {
+            data_end_marker = data_end = end;
+            smtp_ssn->dat_chunk -= (end - ptr);
+        }
     }
 
     if(!smtp_eval_config->ignore_data)
@@ -1582,10 +1587,8 @@ static const uint8_t * SMTP_HandleData(SFSnortPacket *p, const uint8_t *ptr, con
 
     /* if we got the data end reset state, otherwise we're probably still in the data
      * to expect more data in next packet */
-    if (data_end_marker != end)
-    {
+    if (done_data)
         SMTP_ResetState();
-    }
 
     return data_end;
 }
@@ -2005,7 +2008,26 @@ static void SMTP_ProcessClientPacket(SFSnortPacket *p)
     const uint8_t *end = p->payload + p->payload_size;
 
     if (smtp_ssn->state == STATE_CONNECT)
+    {
         smtp_ssn->state = STATE_COMMAND;
+    }
+    else if (smtp_ssn->state == STATE_XEXCH50)
+    {
+        if (p->payload_size > smtp_ssn->dat_chunk)
+        {
+            ptr += smtp_ssn->dat_chunk;
+            smtp_ssn->dat_chunk = 0;
+        }
+        else
+        {
+            smtp_ssn->dat_chunk -= p->payload_size;
+            ptr = end;
+        }
+
+        if (smtp_ssn->dat_chunk == 0)
+            smtp_ssn->state = STATE_COMMAND;
+    }
+
 
     while ((ptr != NULL) && (ptr < end))
     {
@@ -2016,9 +2038,12 @@ static void SMTP_ProcessClientPacket(SFSnortPacket *p)
                 ptr = SMTP_HandleCommand(p, ptr, end);
                 break;
             case STATE_DATA:
+            case STATE_BDATA:
                 DEBUG_WRAP(DebugMessage(DEBUG_SMTP, "DATA STATE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"););
                 ptr = SMTP_HandleData(p, ptr, end);
                 break;
+            case STATE_XEXCH50:
+                return;
             case STATE_UNKNOWN:
                 DEBUG_WRAP(DebugMessage(DEBUG_SMTP, "UNKNOWN STATE ~~~~~~~~~~~~~~~~~~~~~~~~~~\n"););
                 /* If state is unknown try command state to see if we can
@@ -2164,8 +2189,13 @@ static int SMTP_ProcessServerPacket(SFSnortPacket *p)
                     break;
 
                 case RESP_354:
+                case RESP_235:
                     do_flush = 1;
+                    break;
 
+                case RESP_334:
+                    smtp_ssn->state = STATE_X_EXPS;
+                    resp_line_len = 0;
                     break;
 
                 default:
@@ -2392,13 +2422,19 @@ void SnortSMTP(SFSnortPacket *p)
             }
         }
 
-        if ((smtp_ssn->state == STATE_TLS_DATA) || (smtp_ssn->state == STATE_TLS_SERVER_PEND))
+        if ((smtp_ssn->state == STATE_TLS_DATA)
+                || (smtp_ssn->state == STATE_TLS_SERVER_PEND))
         {
             /* if we're ignoring tls data, set a zero length alt buffer */
             if (smtp_eval_config->ignore_tls_data)
             {
                 _dpd.SetAltDecode(0);
             }
+        }
+        else if (smtp_ssn->state == STATE_X_EXPS)
+        {
+            if (p->flags & FLAG_REBUILT_STREAM)
+                smtp_ssn->state = STATE_COMMAND;
         }
         else
         {

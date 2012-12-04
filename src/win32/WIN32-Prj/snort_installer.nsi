@@ -11,7 +11,7 @@
 ; Note that this NSIS script is designed for NSIS version 2.09.
 ;
 
-Name "Snort 2.9.4 RC"
+Name "Snort 2.9.4"
 
 CRCCheck On
 
@@ -23,7 +23,7 @@ CRCCheck On
 ;Configuration
 
   ;General
-  OutFile "Snort_2_9_4_RC_Installer.exe"  ; The name of the installer executable
+  OutFile "Snort_2_9_4_Installer.exe"  ; The name of the installer executable
 
   ;Folder selection page
   InstallDir "C:\Snort"

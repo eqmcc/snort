@@ -747,6 +747,7 @@ static const ConfigFunc config_opts[] =
 #endif
     { CONFIG_OPT__CONTROL_SOCKET_DIR, 1, 1, 1, ConfigControlSocketDirectory },
     { CONFIG_OPT__FILE, 1, 1, 1, ConfigFile },
+    { CONFIG_OPT__TUNNEL_BYPASS, 1, 1, 1, ConfigTunnelVerdicts },
     { NULL, 0, 0, 0, NULL }   /* Marks end of array */
 };
 
@@ -9007,6 +9008,31 @@ void ConfigFile(SnortConfig *sc, char *args)
         file_service_config(args, &(sc->file_config));
 }
 
+void ConfigTunnelVerdicts ( SnortConfig *sc, char *args )
+{
+    char* tmp, *tok;
+
+    if (sc == NULL)
+        return;
+
+    tmp = SnortStrdup(args);
+    tok = strtok(tmp, " ,");
+
+    while ( tok )
+    {
+        if ( !strcasecmp(tok, "gtp") )
+            sc->tunnel_mask |= TUNNEL_GTP;
+
+        else if ( !strcasecmp(tok, "teredo") )
+            sc->tunnel_mask |= TUNNEL_TEREDO;
+
+        else
+            ParseError("Unknown tunnel bypass protocol");
+
+        tok = strtok(NULL, " ,");
+    }
+    free(tmp);
+}
 
 /****************************************************************************
  *

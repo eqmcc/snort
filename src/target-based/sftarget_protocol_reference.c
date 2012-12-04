@@ -40,6 +40,10 @@
 #include "sftarget_reader.h"
 #include "sftarget_hostentry.h"
 
+int16_t protocolReferenceTCP;
+int16_t protocolReferenceUDP;
+int16_t protocolReferenceICMP;
+
 static SFGHASH *proto_reference_table = NULL;
 static int16_t protocol_number = 1;
 
@@ -169,6 +173,9 @@ void InitializeProtocolReferenceTable(void)
     {
         AddProtocolReference(*protocol);
     }
+    protocolReferenceTCP = FindProtocolReference("tcp");
+    protocolReferenceUDP = FindProtocolReference("udp");
+    protocolReferenceICMP = FindProtocolReference("icmp");
 }
 
 void FreeProtoocolReferenceTable(void)
@@ -214,13 +221,13 @@ int16_t GetProtocolReference(Packet *p)
         switch (GET_IPH_PROTO(p))
         {
         case IPPROTO_TCP:
-            ipprotocol = FindProtocolReference("tcp");
+            ipprotocol = protocolReferenceTCP;
             break;
         case IPPROTO_UDP:
-            ipprotocol = FindProtocolReference("udp");
+            ipprotocol = protocolReferenceUDP;
             break;
         case IPPROTO_ICMP:
-            ipprotocol = FindProtocolReference("icmp");
+            ipprotocol = protocolReferenceICMP;
             break;
         }
 

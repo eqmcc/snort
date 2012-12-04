@@ -1535,7 +1535,13 @@ static DAQ_Verdict PacketCallback(
             if ((p.packet_flags & PKT_IGNORE_PORT) ||
                 (stream_api && (stream_api->get_ignore_direction(p.ssnptr) == SSN_DIR_BOTH)))
             {
-                verdict = DAQ_VERDICT_WHITELIST;
+                if ( !Active_GetTunnelBypass() )
+                    verdict = DAQ_VERDICT_WHITELIST;
+                else
+                {
+                    verdict = DAQ_VERDICT_PASS;
+                    pc.internal_whitelist++;
+                }
             }
             else
             {
@@ -1643,6 +1649,12 @@ DAQ_Verdict ProcessPacket(
     {
         if ( !Active_PacketForceDropped() )
             Active_DropAction(p);
+
+        if ( Active_GetTunnelBypass() )
+        {
+            pc.internal_blacklist++;
+            return verdict;
+        }
 
         if ( ScInlineMode() || Active_PacketForceDropped() )
             verdict = DAQ_VERDICT_BLACKLIST;

@@ -1,4 +1,4 @@
-2012-10-22 - Snort 2.9.4 RC
+2012-11-15 - Snort 2.9.4
 [*] New additions
 
  * Consolidation of IPv6 -- now only a single build supports both
@@ -15,6 +15,9 @@
    Snort event
 
  * Decoding of IPv6 with PPPoE
+
+ * Add an API call to add a service to a host in the attribute map.
+   Remove the unused live attribute map.
 
 [*] Improvements
 
@@ -37,3 +40,11 @@
    use a custom evaluation function to match that of the builtin logic
    when the NOT_FLAG is used.  The 'NOT' matching now happens within
    each of the individual rule option evaluation functions.
+
+ * Updated SMTP preprocessor to better handle commands that have
+   corresponding data on a subsequent line to reduce false positives.
+   3 commands fall into this category - X-EXPS, XEXCH50, and BDAT.
+
+ * Improve support for encapsulated & tunneling protocols to block or
+   fastpath a connection within the tunnel rather applying that to
+   the whole tunnel.

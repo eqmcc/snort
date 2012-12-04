@@ -36,6 +36,10 @@ typedef struct _SFTargetProtocolReference
     int16_t ordinal;
 } SFTargetProtocolReference;
 
+extern int16_t protocolReferenceTCP;
+extern int16_t protocolReferenceUDP;
+extern int16_t protocolReferenceICMP;
+
 void InitializeProtocolReferenceTable(void);
 void FreeProtoocolReferenceTable(void);
 int16_t AddProtocolReference(const char *protocol);

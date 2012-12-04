@@ -1166,6 +1166,11 @@ void DropStats(int exiting)
             const char* s = Verdicts[i];
             LogStat(s, pkt_stats->verdicts[i], pkts_recv);
         }
+        if ( pc.internal_blacklist > 0 )
+            LogStat("Int Blklst", pc.internal_blacklist, pkts_recv);
+
+        if ( pc.internal_whitelist > 0 )
+            LogStat("Int Whtlst", pc.internal_whitelist, pkts_recv);
     }
 #ifdef TARGET_BASED
     if (ScIdsMode() && IsAdaptiveConfigured(getDefaultPolicy(), 0))

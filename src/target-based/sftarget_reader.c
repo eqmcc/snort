@@ -105,6 +105,8 @@ extern volatile int attribute_reload_thread_stop;
 extern int reload_attribute_table_flags;
 extern const struct timespec thread_sleep;
 
+static const unsigned MAX_SERVICES_PER_HOST = 10;
+
 /*****TODO: cleanup to use config directive *******/
 #define ATTRIBUTE_MAP_MAX_ROWS 1024
 uint32_t SFAT_NumberOfHosts(void)
@@ -1126,6 +1128,7 @@ void SFAT_UpdateApplicationProtocol(sfip_t *ipAddr, uint16_t port, uint16_t prot
     ApplicationEntry *service;
     tTargetBasedPolicyConfig *pConfig = &targetBasedPolicyConfig;
     sfip_t local_ipAddr;
+    unsigned service_count = 0;
     int rval;
 
     pConfig = &targetBasedPolicyConfig;
@@ -1167,10 +1170,14 @@ void SFAT_UpdateApplicationProtocol(sfip_t *ipAddr, uint16_t port, uint16_t prot
             {
                 break;
             }
+            service_count++;
         }
     }
     if (!service)
     {
+        if ( service_count >= MAX_SERVICES_PER_HOST )
+            return;
+
         service = SnortAlloc(sizeof(*service));
         service->port.attributeOrdinal = port;
         service->port.value.l_value = port;

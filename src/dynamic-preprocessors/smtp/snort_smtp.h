@@ -79,10 +79,13 @@
 #define STATE_CONNECT          0
 #define STATE_COMMAND          1    /* Command state of SMTP transaction */
 #define STATE_DATA             2    /* Data state */
-#define STATE_TLS_CLIENT_PEND  3    /* Got STARTTLS */
-#define STATE_TLS_SERVER_PEND  4    /* Got STARTTLS */
-#define STATE_TLS_DATA         5    /* Successful handshake, TLS encrypted data */
-#define STATE_UNKNOWN          6
+#define STATE_BDATA            3    /* Binary data state */
+#define STATE_TLS_CLIENT_PEND  4    /* Got STARTTLS */
+#define STATE_TLS_SERVER_PEND  5    /* Got STARTTLS */
+#define STATE_TLS_DATA         6    /* Successful handshake, TLS encrypted data */
+#define STATE_X_EXPS           7
+#define STATE_XEXCH50          8
+#define STATE_UNKNOWN          9
 
 #define STATE_DATA_INIT    0
 #define STATE_DATA_HEADER  1    /* Data header section of data state */
@@ -102,6 +105,7 @@
 #define SMTP_FLAG_MULTIPLE_EMAIL_ATTACH      0x00000100
 #define SMTP_FLAG_IN_CONT_DISP               0x00000200
 #define SMTP_FLAG_IN_CONT_DISP_CONT          0x00000400
+#define SMTP_FLAG_BDAT                       0x00000800
 
 /* log flags */
 #define SMTP_FLAG_MAIL_FROM_PRESENT          0x00000001
@@ -187,7 +191,9 @@ typedef enum _SMTPRespEnum
 {
     RESP_220 = 0,
     RESP_221,
+    RESP_235,
     RESP_250,
+    RESP_334,
     RESP_354,
     RESP_421,
     RESP_450,
@@ -273,6 +279,7 @@ typedef struct _SMTP
     int session_flags;
     int alert_mask;
     int reassembling;
+    uint32_t dat_chunk;
 #ifdef DEBUG_MSGS
     uint64_t session_number;
 #endif

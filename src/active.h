@@ -66,11 +66,13 @@ typedef enum {
     ACTIVE_WOULD_DROP = 2,
     ACTIVE_FORCE_DROP = 3
 } tActiveDrop;
+
 extern tActiveDrop active_drop_pkt;
 extern int active_drop_ssn;
 #ifdef ACTIVE_RESPONSE
 extern int active_have_rsp;
 #endif
+extern int active_tunnel_bypass;
 
 static inline void Active_Reset (void)
 {
@@ -79,6 +81,7 @@ static inline void Active_Reset (void)
 #ifdef ACTIVE_RESPONSE
     active_have_rsp = 0;
 #endif
+    active_tunnel_bypass = 0;
 }
 
 static inline void Active_ForceDropPacket (void)
@@ -133,6 +136,21 @@ static inline int Active_ResponseQueued (void)
     return ( active_have_rsp != 0 );
 }
 #endif
+
+static inline void Active_SetTunnelBypass (void)
+{
+    active_tunnel_bypass++;
+}
+
+static inline void Active_ClearTunnelBypass (void)
+{
+    active_tunnel_bypass--;
+}
+
+static inline int Active_GetTunnelBypass (void)
+{
+    return ( active_tunnel_bypass > 0 );
+}
 
 // drops current session with active response invoked
 // for rules with action = drop | sdrop | reject

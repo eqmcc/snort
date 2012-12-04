@@ -528,6 +528,11 @@ typedef enum _DecodeEventFlag
 
 } DecodeEventFlag;
 
+typedef enum {
+    TUNNEL_GTP    = 0x01,
+    TUNNEL_TEREDO = 0x02
+} TunnelFlags;
+
 typedef struct _VarNode
 {
     char *name;
@@ -856,6 +861,7 @@ typedef struct _SnortConfig
     uint8_t vlan_agnostic; /* config vlan_agnostic */
     uint8_t addressspace_agnostic; /* config addressspace_agnostic */
     uint8_t log_ipv6_extra; /* config log_ipv6_extra_data */
+    uint8_t tunnel_mask;
 
     uint32_t so_rule_memcap;
     uint32_t paf_max;          /* config paf_max */
@@ -993,6 +999,9 @@ typedef struct _PacketCount
 #ifdef MPLS
     uint64_t mpls;
 #endif
+
+    uint64_t internal_blacklist;
+    uint64_t internal_whitelist;
 
 } PacketCount;
 
@@ -1632,6 +1641,11 @@ static inline int ScLogIPv6Extra(void)
 static inline uint32_t ScSoRuleMemcap(void)
 {
     return snort_conf->so_rule_memcap;
+}
+
+static inline bool ScTunnelBypassEnabled (uint8_t proto)
+{
+    return !(snort_conf->tunnel_mask & proto);
 }
 
 #endif  /* __SNORT_H__ */

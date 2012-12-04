@@ -1125,6 +1125,19 @@ block each packet and this count will be higher.
 \item Ignore = packets that caused Snort to allow a flow to pass w/o inspection
 by this instance of Snort.  Like blacklist, this is done by the DAQ or by Snort
 on subsequent packets.
+
+\item Int Blklst = packets that are GTP or Teredo encapsulated that are being
+blocked.  These packets could get the Blacklist verdict if \texttt{config
+tunnel\_verdicts} was set for the given protocol.  Note that this count are
+output only if non-zero.  Also, this count is incremented on the first packet
+in the flow that alerts.  The alerting packet and all following packets on the
+flow will be counted under Block.
+
+\item Int Whtlst = packets that are GTP or Teredo encapsulated that are being
+allowed.  These packets could get the Whitelist verdict if \texttt{config
+tunnel\_verdicts} was set for the given protocol.  Note that this count are
+output only if non-zero.  Also, this count is incremented for all packets on
+the flow starting with the alerting packet.
 \end{itemize}
 
 Example:
@@ -2359,13 +2372,30 @@ Use config event\_filter instead.)\\
 \\
 
 \hline
-\texttt{config vlan\_agnostic} & Causes Snort to ignore vlan headers for the purposes of connection and frag tracking.  This option is only valid in the base configuration when using multiple configurations, and the default is off.  \\
+\texttt{config vlan\_agnostic} & Causes Snort to ignore vlan headers for
+the purposes of connection and frag tracking.  This option is only valid in the
+base configuration when using multiple configurations, and the default is off.
+\\
 
 \hline
-\texttt{config address\_space\_agnostic} & Causes Snort to ignore DAQ address space ID for the purposes of connection and frag tracking.  This option is only valid in the base configuration when using multiple configurations, and the default is off.  \\
+\texttt{config address\_space\_agnostic} & Causes Snort to ignore DAQ
+address space ID for the purposes of connection and frag tracking.  This option
+is only valid in the base configuration when using multiple configurations, and
+the default is off.  \\
 
 \hline
-\texttt{config policy\_mode: tap|inline|inline\_test} & Sets the policy mode to either \texttt{passive}, \texttt{inline} or \texttt{inline\_test}. \\
+\texttt{config policy\_mode: tap|inline|inline\_test} & Sets the policy
+mode to either \texttt{passive}, \texttt{inline} or \texttt{inline\_test}. \\
+
+\hline \texttt{config tunnel\_verdicts: gtp|teredo} & By default, whitelist and
+blacklist verdicts are handled internally by Snort for GTP and Teredo
+encapsulated traffic.  This means Snort actually gives the DAQ a pass or block
+verdict instead.  This is to workaround cases where the DAQ would apply
+the verdict to the whole tunnel instead of the individual session within the
+tunnel.  If your DAQ decodes GTP or Teredo correctly, setting this config
+will allow the whitelist or blacklist verdict to go to the DAQ.  There is a
+modest performance boost by doing this where possible since Snort won't see the
+remaining packets on the session. \\
 
 \hline
 \end{longtable}
